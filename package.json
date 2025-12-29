@@ -1,0 +1,38 @@
+{
+  "name": "control-youtube-tv",
+  "version": "1.0.0",
+  "description": "Control YouTube TV programmatically using Playwright",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/index.ts",
+    "example": "ts-node examples/basic-usage.ts",
+    "example:record": "ts-node examples/record-session.ts",
+    "server": "ts-node examples/api-integration.ts",
+    "prepare": "npm run build",
+    "clean": "rm -rf dist"
+  },
+  "repository": {
+    "type": "git",
+    "url": "http://local_proxy@127.0.0.1:17844/git/minakianandclaude/ControlYoutubeTv"
+  },
+  "keywords": [
+    "youtube-tv",
+    "playwright",
+    "automation",
+    "remote-control",
+    "browser-automation"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@types/node": "^25.0.3",
+    "playwright": "^1.57.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
