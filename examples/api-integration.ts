@@ -171,6 +171,11 @@ async function handleRequest(
         return { success: true, data: { channels } };
       }
 
+      case '/guide-data': {
+        const guideData = await controller!.getGuideData();
+        return { success: true, data: { guide: guideData } };
+      }
+
       case '/button': {
         const params = JSON.parse(body || '{}');
         if (params.button) {
@@ -296,6 +301,7 @@ server.listen(PORT, () => {
   console.log('  POST /channel         - Play channel via search {"name": "CNN"}');
   console.log('  POST /tune            - Tune to channel in guide {"name": "CBS"}');
   console.log('  GET  /channels        - Get list of visible channels');
+  console.log('  GET  /guide-data      - Get full guide (channels + programs + times)');
   console.log('  POST /button          - Press button {"button": "enter"}');
   console.log('  POST /navigate        - Navigate {"direction": "up"}');
   console.log('  POST /select          - Select current item');

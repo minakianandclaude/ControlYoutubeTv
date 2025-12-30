@@ -563,6 +563,148 @@ export class YouTubeTVController implements IYouTubeTVController {
     });
   }
 
+  // Get full guide data with channels, programs, and times
+  async getGuideData(): Promise<Array<{
+    channel: string;
+    programs: Array<{
+      title: string;
+      time: string;
+      description?: string;
+    }>;
+  }>> {
+    if (!this.page) throw new Error('Controller not launched');
+
+    // Make sure we're on the live guide
+    const currentUrl = this.page.url();
+    if (!currentUrl.includes('/live')) {
+      await this.page.goto('https://tv.youtube.com/live', { waitUntil: 'domcontentloaded' });
+      await this.page.waitForTimeout(2000);
+    }
+
+    return await this.page.evaluate(() => {
+      const guideData: Array<{
+        channel: string;
+        programs: Array<{
+          title: string;
+          time: string;
+          description?: string;
+        }>;
+      }> = [];
+
+      // Find all channel rows in the guide
+      // YouTube TV guide structure: rows contain channel info + program cells
+      const rows = document.querySelectorAll('[class*="channel-row"], [class*="guide-row"], tr, [role="row"]');
+
+      rows.forEach((row) => {
+        // Try to find channel name in this row
+        const channelEl = row.querySelector('[class*="channel-name"], [class*="station"], [class*="network"], img[alt]');
+        const channelName = channelEl?.textContent?.trim() || (channelEl as HTMLImageElement)?.alt?.trim();
+
+        if (!channelName || channelName.length < 2) return;
+
+        // Find program cells in this row
+        const programCells = row.querySelectorAll('[class*="program"], [class*="cell"], [role="gridcell"], [role="button"]');
+        const programs: Array<{ title: string; time: string; description?: string }> = [];
+
+        programCells.forEach((cell) => {
+          const cellText = cell.textContent?.trim() || '';
+          const ariaLabel = cell.getAttribute('aria-label') || '';
+
+          // Try to parse time and title from the cell
+          // Common patterns: "2:00PM Show Title" or aria-label contains full info
+          const timeMatch = cellText.match(/(\d{1,2}:\d{2}\s*(AM|PM)?)/i)
+            || ariaLabel.match(/(\d{1,2}:\d{2}\s*(AM|PM)?)/i);
+
+          // Extract title - usually the main text content or from aria-label
+          let title = '';
+          let time = '';
+          let description = '';
+
+          if (ariaLabel) {
+            // aria-label often has format: "Time • Title • Description"
+            const parts = ariaLabel.split('•').map(s => s.trim());
+            if (parts.length >= 2) {
+              time = parts[0] || '';
+              title = parts[1] || '';
+              description = parts.slice(2).join(' ').trim();
+            } else {
+              title = ariaLabel;
+            }
+          }
+
+          if (!title && cellText) {
+            // Fallback: parse from cell text
+            const lines = cellText.split('\n').map(s => s.trim()).filter(Boolean);
+            if (lines.length >= 2) {
+              time = lines[0] || '';
+              title = lines[1] || '';
+              description = lines.slice(2).join(' ');
+            } else if (lines.length === 1) {
+              title = lines[0];
+            }
+          }
+
+          if (timeMatch && !time) {
+            time = timeMatch[1];
+          }
+
+          if (title && title.length > 1 && title !== channelName) {
+            programs.push({
+              title,
+              time: time || 'Now',
+              ...(description && { description }),
+            });
+          }
+        });
+
+        if (programs.length > 0) {
+          guideData.push({
+            channel: channelName,
+            programs,
+          });
+        }
+      });
+
+      // If row-based parsing didn't work, try alternative approach
+      if (guideData.length === 0) {
+        // Get all channel identifiers
+        const channelEls = document.querySelectorAll('[class*="channel-logo"] img, [class*="station-logo"], [class*="network-logo"]');
+
+        channelEls.forEach((channelEl) => {
+          const channelName = (channelEl as HTMLImageElement).alt?.trim() || channelEl.textContent?.trim();
+          if (!channelName || channelName.length < 2) return;
+
+          // Find the parent row and look for programs
+          const row = channelEl.closest('[class*="row"], tr');
+          if (!row) return;
+
+          const programEls = row.querySelectorAll('[aria-label*="PM"], [aria-label*="AM"], [class*="program"]');
+          const programs: Array<{ title: string; time: string; description?: string }> = [];
+
+          programEls.forEach((prog) => {
+            const label = prog.getAttribute('aria-label') || prog.textContent || '';
+            if (label) {
+              // Parse "Time Title" or "Time • Title"
+              const parts = label.split(/[•\n]/).map(s => s.trim()).filter(Boolean);
+              if (parts.length >= 1) {
+                programs.push({
+                  title: parts[1] || parts[0],
+                  time: parts[0].match(/\d{1,2}:\d{2}/) ? parts[0] : 'Now',
+                });
+              }
+            }
+          });
+
+          if (programs.length > 0) {
+            guideData.push({ channel: channelName, programs });
+          }
+        });
+      }
+
+      return guideData;
+    });
+  }
+
   async gotoLibrary(): Promise<void> {
     if (!this.page) throw new Error('Controller not launched');
     await this.page.goto('https://tv.youtube.com/library', { waitUntil: 'domcontentloaded' });
