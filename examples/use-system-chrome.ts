@@ -16,7 +16,7 @@ async function main() {
   console.log('YouTube TV Controller - Using System Chrome');
   console.log('='.repeat(60));
   console.log('');
-  console.log('IMPORTANT: Close all Chrome windows before continuing!');
+  console.log('IMPORTANT: Make sure all Chrome windows are closed!');
   console.log('');
 
   // Option 1: Use system Chrome with your existing profile
@@ -29,6 +29,8 @@ async function main() {
   });
 
   // Option 2: Use system Chrome with a fresh profile (if you want separation)
+  // Uncomment below and comment out above to use a fresh profile:
+  //
   // const controller = new YouTubeTVController({
   //   headless: false,
   //   useSystemChrome: true,
@@ -37,19 +39,21 @@ async function main() {
   // });
 
   try {
-    console.log('Launching Chrome...');
+    console.log('Step 1: Launching Chrome...');
     await controller.launch();
+    console.log('Chrome launched successfully!');
 
     // Wait a moment for the page to load
     await delay(3000);
 
     // Check if already authenticated
+    console.log('Step 2: Checking authentication...');
     const isAuth = await controller.isAuthenticated();
     if (isAuth) {
       console.log('Already logged in! Using your existing Google session.');
     } else {
       console.log('');
-      console.log('Please sign in to your Google account.');
+      console.log('Please sign in to your Google account in the browser window.');
       console.log('Since this is your real Chrome, Google should allow the login.');
       console.log('');
       console.log('Waiting for authentication (5 minute timeout)...');
@@ -65,7 +69,7 @@ async function main() {
 
     // Now you can control YouTube TV
     console.log('');
-    console.log('YouTube TV is ready! Demonstrating controls...');
+    console.log('Step 3: YouTube TV is ready! Demonstrating controls...');
     await delay(2000);
 
     // Get current state
@@ -73,12 +77,12 @@ async function main() {
     console.log('Current URL:', state.currentUrl);
 
     // Open live TV guide
-    console.log('Opening live TV guide...');
+    console.log('Step 4: Opening live TV guide...');
     await controller.openGuide();
     await delay(3000);
 
     // Navigate and select a channel
-    console.log('Navigating to a channel...');
+    console.log('Step 5: Navigating to a channel...');
     await controller.navigate('down');
     await delay(500);
     await controller.navigate('down');
@@ -103,6 +107,12 @@ async function main() {
     await delay(60000 * 10);
   } catch (error) {
     console.error('Error:', error);
+    console.log('');
+    console.log('Troubleshooting tips:');
+    console.log('1. Make sure ALL Chrome windows are closed');
+    console.log('2. Check if Chrome is installed in a standard location');
+    console.log('3. Try running with a fresh profile instead:');
+    console.log('   userDataDir: "./my-youtube-profile"');
   } finally {
     await controller.close();
   }
