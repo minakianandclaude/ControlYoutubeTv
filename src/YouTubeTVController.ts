@@ -751,12 +751,17 @@ export class YouTubeTVController implements IYouTubeTVController {
   }
 
   // Get list of visible channels in the guide
+  // Checks current page first - only navigates to /live if guide data not found
   async getChannelList(): Promise<string[]> {
     if (!this.page) throw new Error('Controller not launched');
 
-    // Make sure we're on the live guide
-    const currentUrl = this.page.url();
-    if (!currentUrl.includes('/live')) {
+    // First, check if guide elements exist on current page
+    const hasGuideData = await this.page.evaluate(() => {
+      return document.querySelectorAll('ytu-epg-row').length > 0;
+    });
+
+    // Only navigate if guide data not present
+    if (!hasGuideData) {
       await this.page.goto('https://tv.youtube.com/live', { waitUntil: 'domcontentloaded' });
       await this.page.waitForTimeout(2000);
     }
@@ -784,6 +789,7 @@ export class YouTubeTVController implements IYouTubeTVController {
   }
 
   // Get full guide data with channels, programs, and times
+  // Checks current page first - only navigates to /live if guide data not found
   async getGuideData(): Promise<Array<{
     channel: string;
     programs: Array<{
@@ -794,9 +800,13 @@ export class YouTubeTVController implements IYouTubeTVController {
   }>> {
     if (!this.page) throw new Error('Controller not launched');
 
-    // Make sure we're on the live guide
-    const currentUrl = this.page.url();
-    if (!currentUrl.includes('/live')) {
+    // First, check if guide elements exist on current page
+    const hasGuideData = await this.page.evaluate(() => {
+      return document.querySelectorAll('ytu-epg-row').length > 0;
+    });
+
+    // Only navigate if guide data not present
+    if (!hasGuideData) {
       await this.page.goto('https://tv.youtube.com/live', { waitUntil: 'domcontentloaded' });
       await this.page.waitForTimeout(2000);
     }
