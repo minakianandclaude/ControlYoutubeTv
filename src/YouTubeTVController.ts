@@ -518,17 +518,70 @@ export class YouTubeTVController implements IYouTubeTVController {
   async playChannel(channelName: string): Promise<void> {
     if (!this.page) throw new Error('Controller not launched');
 
-    await this.openGuide();
+    // Try searching for the channel first (more reliable)
+    await this.search(channelName);
     await this.page.waitForTimeout(2000);
 
-    const channelSelector = `text="${channelName}"`;
+    // Try to click on the first result that matches
     try {
-      await this.page.click(channelSelector, { timeout: 10000 });
+      // Look for clickable items in search results
+      const selectors = [
+        `[aria-label*="${channelName}" i]`,
+        `text="${channelName}"`,
+        `text=${channelName}`,
+        '.ytlr-tile-renderer',
+        '[class*="card"]',
+        '[class*="tile"]',
+      ];
+
+      for (const selector of selectors) {
+        try {
+          const element = await this.page.$(selector);
+          if (element) {
+            await element.click();
+            return;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      // Fallback: navigate with keyboard
+      await this.page.waitForTimeout(500);
+      await this.navigate('down');
+      await this.page.waitForTimeout(300);
+      await this.select();
     } catch {
-      await this.search(channelName);
-      await this.page.waitForTimeout(2000);
-      await this.pressButton('down');
-      await this.pressButton('enter');
+      // Final fallback
+      await this.navigate('down');
+      await this.select();
+    }
+  }
+
+  async clickText(text: string): Promise<boolean> {
+    if (!this.page) throw new Error('Controller not launched');
+
+    try {
+      await this.page.click(`text="${text}"`, { timeout: 5000 });
+      return true;
+    } catch {
+      try {
+        await this.page.click(`text=${text}`, { timeout: 5000 });
+        return true;
+      } catch {
+        return false;
+      }
+    }
+  }
+
+  async clickSelector(selector: string): Promise<boolean> {
+    if (!this.page) throw new Error('Controller not launched');
+
+    try {
+      await this.page.click(selector, { timeout: 5000 });
+      return true;
+    } catch {
+      return false;
     }
   }
 
@@ -607,7 +660,34 @@ export class YouTubeTVController implements IYouTubeTVController {
   // Private helper methods
   private async pressKey(key: string): Promise<void> {
     if (!this.page) throw new Error('Controller not launched');
+    // Ensure page is focused before sending keyboard events
+    await this.ensurePageFocused();
     await this.page.keyboard.press(key);
+  }
+
+  private async ensurePageFocused(): Promise<void> {
+    if (!this.page) return;
+
+    try {
+      // Click on the body to ensure the page receives keyboard events
+      await this.page.evaluate(() => {
+        // Remove focus from any input elements
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+        // Focus the body
+        document.body.focus();
+        // Also try clicking on the main content area
+        const mainContent = document.querySelector('ytlr-app, #content, main, body');
+        if (mainContent instanceof HTMLElement) {
+          mainContent.focus();
+        }
+      });
+      // Small delay to ensure focus is set
+      await this.page.waitForTimeout(50);
+    } catch {
+      // Ignore focus errors
+    }
   }
 
   private async ensureVideoFocused(): Promise<void> {
@@ -623,5 +703,3 @@ export class YouTubeTVController implements IYouTubeTVController {
     }
   }
 }
-
-export default YouTubeTVController;

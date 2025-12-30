@@ -167,6 +167,19 @@ async function handleRequest(
         await controller!.back();
         return { success: true, data: { action: 'back' } };
 
+      case '/click': {
+        const params = JSON.parse(body || '{}');
+        if (params.text) {
+          const clicked = await controller!.clickText(params.text);
+          return { success: clicked, data: { clicked: params.text } };
+        }
+        if (params.selector) {
+          const clicked = await controller!.clickSelector(params.selector);
+          return { success: clicked, data: { clicked: params.selector } };
+        }
+        return { success: false, error: 'Missing text or selector parameter' };
+      }
+
       case '/screenshot': {
         const buffer = await controller!.screenshot();
         return {
@@ -239,6 +252,7 @@ server.listen(PORT, () => {
   console.log('  POST /navigate        - Navigate {"direction": "up"}');
   console.log('  POST /select          - Select current item');
   console.log('  POST /back            - Go back');
+  console.log('  POST /click           - Click text {"text": "CNN"} or selector {"selector": ".button"}');
   console.log('  GET  /screenshot      - Take screenshot (base64)');
   console.log('\nExample usage:');
   console.log('  curl -X POST http://localhost:3000/launch');
