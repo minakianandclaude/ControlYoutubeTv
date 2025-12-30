@@ -507,24 +507,35 @@ export class YouTubeTVController implements IYouTubeTVController {
 
     // Go to live TV guide
     await this.page.goto('https://tv.youtube.com/live', { waitUntil: 'domcontentloaded' });
-    await this.page.waitForTimeout(2000);
+    await this.page.waitForTimeout(3000); // Wait longer for guide to fully load
 
-    // Find the channel name element, then click on the program cell to its right
     try {
-      // Find the channel name/logo element
-      const channelElement = await this.page.$(`text="${channelName}"`)
-        || await this.page.$(`[aria-label*="${channelName}" i]`)
-        || await this.page.$(`img[alt*="${channelName}" i]`);
+      // Find the channel row and click on its first program (airing)
+      const result = await this.page.evaluate((targetChannel) => {
+        const rows = document.querySelectorAll('ytu-epg-row');
 
-      if (channelElement) {
-        const box = await channelElement.boundingBox();
-        if (box) {
-          // Click to the RIGHT of the channel name (on the program cell)
-          // Program cells start after the channel column, typically 200-300px to the right
-          await this.page.mouse.click(box.x + box.width + 150, box.y + box.height / 2);
-          await this.page.waitForTimeout(500);
-          return true;
+        for (const row of rows) {
+          const networkTitle = row.querySelector('.network-title');
+          const networkImg = row.querySelector('.network img[alt]');
+          const channelName = networkTitle?.textContent?.trim()
+            || (networkImg as HTMLImageElement)?.alt?.trim();
+
+          // Check if this is the channel we're looking for (case-insensitive partial match)
+          if (channelName && channelName.toLowerCase().includes(targetChannel.toLowerCase())) {
+            // Find the first airing (program cell) in this row
+            const firstAiring = row.querySelector('ytu-epg-airing a');
+            if (firstAiring) {
+              (firstAiring as HTMLElement).click();
+              return { found: true, channel: channelName };
+            }
+          }
         }
+        return { found: false, channel: null };
+      }, channelName);
+
+      if (result.found) {
+        await this.page.waitForTimeout(1000);
+        return true;
       }
 
       // Fallback: search for the channel
