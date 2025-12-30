@@ -10,6 +10,7 @@
     "example": "ts-node examples/basic-usage.ts",
     "example:record": "ts-node examples/record-session.ts",
     "example:chrome": "ts-node examples/use-system-chrome.ts",
+    "debug": "ts-node examples/debug-launch.ts",
     "server": "ts-node examples/api-integration.ts",
     "prepare": "npm run build",
     "clean": "rm -rf dist"
