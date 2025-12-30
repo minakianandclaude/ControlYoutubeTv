@@ -539,26 +539,31 @@ export class YouTubeTVController implements IYouTubeTVController {
   async getChannelList(): Promise<string[]> {
     if (!this.page) throw new Error('Controller not launched');
 
+    // Make sure we're on the live guide
+    const currentUrl = this.page.url();
+    if (!currentUrl.includes('/live')) {
+      await this.page.goto('https://tv.youtube.com/live', { waitUntil: 'domcontentloaded' });
+      await this.page.waitForTimeout(2000);
+    }
+
     return await this.page.evaluate(() => {
       const channels: string[] = [];
-      // Try various selectors for channel names
-      const selectors = [
-        '[class*="channel"] [class*="name"]',
-        '[class*="channel-logo"]',
-        '[class*="station"]',
-        'img[alt]',
-      ];
 
-      for (const selector of selectors) {
-        const elements = document.querySelectorAll(selector);
-        elements.forEach((el) => {
-          const text = el.textContent?.trim() || (el as HTMLImageElement).alt?.trim();
-          if (text && text.length > 1 && text.length < 50 && !channels.includes(text)) {
-            channels.push(text);
-          }
-        });
-        if (channels.length > 5) break;
-      }
+      // YouTube TV uses ytu-epg-row for each channel row
+      // Channel name is in .network-title or img[alt] within the row
+      const rows = document.querySelectorAll('ytu-epg-row');
+
+      rows.forEach((row) => {
+        const networkTitle = row.querySelector('.network-title');
+        const networkImg = row.querySelector('.network img[alt]');
+        const channelName = networkTitle?.textContent?.trim()
+          || (networkImg as HTMLImageElement)?.alt?.trim();
+
+        if (channelName && !channels.includes(channelName)) {
+          channels.push(channelName);
+        }
+      });
+
       return channels;
     });
   }
@@ -591,64 +596,36 @@ export class YouTubeTVController implements IYouTubeTVController {
         }>;
       }> = [];
 
-      // Find all channel rows in the guide
-      // YouTube TV guide structure: rows contain channel info + program cells
-      const rows = document.querySelectorAll('[class*="channel-row"], [class*="guide-row"], tr, [role="row"]');
+      // Find all channel rows - YouTube TV uses ytu-epg-row
+      const rows = document.querySelectorAll('ytu-epg-row');
 
       rows.forEach((row) => {
-        // Try to find channel name in this row
-        const channelEl = row.querySelector('[class*="channel-name"], [class*="station"], [class*="network"], img[alt]');
-        const channelName = channelEl?.textContent?.trim() || (channelEl as HTMLImageElement)?.alt?.trim();
+        // Get channel name from .network-title or from img alt
+        const networkTitle = row.querySelector('.network-title');
+        const networkImg = row.querySelector('.network img[alt]');
+        const channelName = networkTitle?.textContent?.trim()
+          || (networkImg as HTMLImageElement)?.alt?.trim();
 
-        if (!channelName || channelName.length < 2) return;
+        if (!channelName) return;
 
-        // Find program cells in this row
-        const programCells = row.querySelectorAll('[class*="program"], [class*="cell"], [role="gridcell"], [role="button"]');
+        // Get all programs (airings) for this channel
+        const airings = row.querySelectorAll('ytu-epg-airing');
         const programs: Array<{ title: string; time: string; description?: string }> = [];
 
-        programCells.forEach((cell) => {
-          const cellText = cell.textContent?.trim() || '';
-          const ariaLabel = cell.getAttribute('aria-label') || '';
+        airings.forEach((airing) => {
+          // Get time from .time-text
+          const timeEl = airing.querySelector('.time-text');
+          const time = timeEl?.textContent?.trim().replace(/\s+/g, ' ') || '';
 
-          // Try to parse time and title from the cell
-          // Common patterns: "2:00PM Show Title" or aria-label contains full info
-          const timeMatch = cellText.match(/(\d{1,2}:\d{2}\s*(AM|PM)?)/i)
-            || ariaLabel.match(/(\d{1,2}:\d{2}\s*(AM|PM)?)/i);
+          // Get show title from .primary-text
+          const titleEl = airing.querySelector('.primary-text');
+          const title = titleEl?.textContent?.trim() || '';
 
-          // Extract title - usually the main text content or from aria-label
-          let title = '';
-          let time = '';
-          let description = '';
+          // Get episode info from .ytu-formatted-string
+          const infoEl = airing.querySelector('.ytu-formatted-string');
+          const description = infoEl?.textContent?.trim() || '';
 
-          if (ariaLabel) {
-            // aria-label often has format: "Time • Title • Description"
-            const parts = ariaLabel.split('•').map(s => s.trim());
-            if (parts.length >= 2) {
-              time = parts[0] || '';
-              title = parts[1] || '';
-              description = parts.slice(2).join(' ').trim();
-            } else {
-              title = ariaLabel;
-            }
-          }
-
-          if (!title && cellText) {
-            // Fallback: parse from cell text
-            const lines = cellText.split('\n').map(s => s.trim()).filter(Boolean);
-            if (lines.length >= 2) {
-              time = lines[0] || '';
-              title = lines[1] || '';
-              description = lines.slice(2).join(' ');
-            } else if (lines.length === 1) {
-              title = lines[0];
-            }
-          }
-
-          if (timeMatch && !time) {
-            time = timeMatch[1];
-          }
-
-          if (title && title.length > 1 && title !== channelName) {
+          if (title) {
             programs.push({
               title,
               time: time || 'Now',
@@ -664,42 +641,6 @@ export class YouTubeTVController implements IYouTubeTVController {
           });
         }
       });
-
-      // If row-based parsing didn't work, try alternative approach
-      if (guideData.length === 0) {
-        // Get all channel identifiers
-        const channelEls = document.querySelectorAll('[class*="channel-logo"] img, [class*="station-logo"], [class*="network-logo"]');
-
-        channelEls.forEach((channelEl) => {
-          const channelName = (channelEl as HTMLImageElement).alt?.trim() || channelEl.textContent?.trim();
-          if (!channelName || channelName.length < 2) return;
-
-          // Find the parent row and look for programs
-          const row = channelEl.closest('[class*="row"], tr');
-          if (!row) return;
-
-          const programEls = row.querySelectorAll('[aria-label*="PM"], [aria-label*="AM"], [class*="program"]');
-          const programs: Array<{ title: string; time: string; description?: string }> = [];
-
-          programEls.forEach((prog) => {
-            const label = prog.getAttribute('aria-label') || prog.textContent || '';
-            if (label) {
-              // Parse "Time Title" or "Time • Title"
-              const parts = label.split(/[•\n]/).map(s => s.trim()).filter(Boolean);
-              if (parts.length >= 1) {
-                programs.push({
-                  title: parts[1] || parts[0],
-                  time: parts[0].match(/\d{1,2}:\d{2}/) ? parts[0] : 'Now',
-                });
-              }
-            }
-          });
-
-          if (programs.length > 0) {
-            guideData.push({ channel: channelName, programs });
-          }
-        });
-      }
 
       return guideData;
     });
