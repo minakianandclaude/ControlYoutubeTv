@@ -158,6 +158,8 @@ export class YouTubeTVController implements IYouTubeTVController {
       headless: this.options.headless,
       slowMo: this.options.slowMo,
       args,
+      // CRITICAL: Allow Chrome to download Widevine CDM for DRM video playback
+      ignoreDefaultArgs: ['--disable-component-update'],
     };
 
     // Use Chrome executable for codec support
