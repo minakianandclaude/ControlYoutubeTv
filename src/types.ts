@@ -6,6 +6,14 @@ export interface YouTubeTVControllerOptions {
   userDataDir?: string;
   viewport?: { width: number; height: number };
   timeout?: number;
+  /** Use the system's installed Chrome instead of Playwright's bundled Chromium */
+  useSystemChrome?: boolean;
+  /** Use the existing Chrome user profile (inherits Google login) */
+  useChromeProfile?: boolean;
+  /** Custom path to Chrome profile directory */
+  chromeProfilePath?: string;
+  /** Custom path to Chrome executable */
+  executablePath?: string;
 }
 
 export interface PlaybackState {

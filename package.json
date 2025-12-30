@@ -9,6 +9,7 @@
     "dev": "ts-node src/index.ts",
     "example": "ts-node examples/basic-usage.ts",
     "example:record": "ts-node examples/record-session.ts",
+    "example:chrome": "ts-node examples/use-system-chrome.ts",
     "server": "ts-node examples/api-integration.ts",
     "prepare": "npm run build",
     "clean": "rm -rf dist"
@@ -29,6 +30,8 @@
   "dependencies": {
     "@types/node": "^25.0.3",
     "playwright": "^1.57.0",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   },

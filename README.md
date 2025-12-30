@@ -61,7 +61,30 @@ interface YouTubeTVControllerOptions {
     height: number;          // Default: 1080
   };
   timeout?: number;          // Default timeout in ms (default: 30000)
+  useSystemChrome?: boolean; // Use installed Chrome instead of Playwright's Chromium
+  useChromeProfile?: boolean;// Use existing Chrome profile (with Google login)
+  chromeProfilePath?: string;// Custom path to Chrome profile directory
+  executablePath?: string;   // Custom path to Chrome executable
 }
+```
+
+### Google Sign-In Issues
+
+If you get "This browser or app may not be secure" when trying to sign in, use your system's Chrome with your existing profile:
+
+```typescript
+const controller = new YouTubeTVController({
+  headless: false,
+  useSystemChrome: true,   // Use installed Chrome (not Playwright's Chromium)
+  useChromeProfile: true,  // Use your existing Chrome profile with Google login
+});
+```
+
+**Important:** Close all Chrome windows before running - Chrome only allows one instance per profile.
+
+To run this example:
+```bash
+npm run example:chrome
 ```
 
 ### Persistent Sessions
@@ -159,6 +182,12 @@ Available buttons for `pressButton()`:
 
 ```bash
 npm run example
+```
+
+### Use System Chrome (Recommended for Login)
+
+```bash
+npm run example:chrome
 ```
 
 ### Persistent Session

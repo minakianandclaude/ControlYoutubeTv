@@ -1,4 +1,8 @@
-import { chromium, Browser, BrowserContext, Page } from 'playwright';
+import { chromium, Browser, BrowserContext, Page, LaunchOptions } from 'playwright';
+import { chromium as playwrightExtra } from 'playwright-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import * as path from 'path';
+import * as os from 'os';
 import {
   YouTubeTVControllerOptions,
   PlaybackState,
@@ -6,6 +10,9 @@ import {
   RemoteButton,
   YouTubeTVController as IYouTubeTVController,
 } from './types';
+
+// Apply stealth plugin to avoid bot detection
+playwrightExtra.use(StealthPlugin());
 
 const YOUTUBE_TV_URL = 'https://tv.youtube.com';
 
@@ -33,11 +40,70 @@ const KEY_MAPPINGS: Record<RemoteButton, string> = {
   channelDown: 'PageDown',
 };
 
+// Common Chrome profile paths by OS
+function getDefaultChromeProfilePath(): string {
+  const platform = os.platform();
+  const homeDir = os.homedir();
+
+  switch (platform) {
+    case 'win32':
+      return path.join(homeDir, 'AppData', 'Local', 'Google', 'Chrome', 'User Data');
+    case 'darwin':
+      return path.join(homeDir, 'Library', 'Application Support', 'Google', 'Chrome');
+    case 'linux':
+      return path.join(homeDir, '.config', 'google-chrome');
+    default:
+      return '';
+  }
+}
+
+// Find Chrome executable path
+function findChromeExecutable(): string | undefined {
+  const platform = os.platform();
+
+  const paths: Record<string, string[]> = {
+    win32: [
+      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+      'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+      path.join(os.homedir(), 'AppData', 'Local', 'Google', 'Chrome', 'Application', 'chrome.exe'),
+    ],
+    darwin: [
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    ],
+    linux: [
+      '/usr/bin/google-chrome',
+      '/usr/bin/google-chrome-stable',
+      '/usr/bin/chromium',
+      '/usr/bin/chromium-browser',
+      '/snap/bin/chromium',
+    ],
+  };
+
+  const candidates = paths[platform] || [];
+  for (const chromePath of candidates) {
+    try {
+      const fs = require('fs');
+      if (fs.existsSync(chromePath)) {
+        return chromePath;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return undefined;
+}
+
 export class YouTubeTVController implements IYouTubeTVController {
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
   private page: Page | null = null;
-  private options: Required<YouTubeTVControllerOptions>;
+  private options: Required<YouTubeTVControllerOptions> & {
+    useSystemChrome: boolean;
+    useChromeProfile: boolean;
+    chromeProfilePath: string;
+    executablePath: string;
+  };
 
   constructor(options: YouTubeTVControllerOptions = {}) {
     this.options = {
@@ -46,33 +112,105 @@ export class YouTubeTVController implements IYouTubeTVController {
       userDataDir: options.userDataDir ?? '',
       viewport: options.viewport ?? { width: 1920, height: 1080 },
       timeout: options.timeout ?? 30000,
+      useSystemChrome: options.useSystemChrome ?? false,
+      useChromeProfile: options.useChromeProfile ?? false,
+      chromeProfilePath: options.chromeProfilePath ?? getDefaultChromeProfilePath(),
+      executablePath: options.executablePath ?? '',
     };
   }
 
   async launch(): Promise<void> {
-    const launchOptions = {
+    // Determine which executable to use
+    let executablePath = this.options.executablePath;
+    if (!executablePath && this.options.useSystemChrome) {
+      executablePath = findChromeExecutable() || '';
+    }
+
+    // Determine user data directory
+    let userDataDir = this.options.userDataDir;
+    if (!userDataDir && this.options.useChromeProfile) {
+      userDataDir = this.options.chromeProfilePath;
+    }
+
+    const launchOptions: LaunchOptions & { channel?: string } = {
       headless: this.options.headless,
       slowMo: this.options.slowMo,
+      args: [
+        '--disable-blink-features=AutomationControlled',
+        '--disable-features=IsolateOrigins,site-per-process',
+        '--disable-infobars',
+        '--no-first-run',
+        '--no-default-browser-check',
+      ],
     };
 
-    if (this.options.userDataDir) {
-      this.context = await chromium.launchPersistentContext(
-        this.options.userDataDir,
+    // Use system Chrome if specified and available
+    if (executablePath) {
+      launchOptions.executablePath = executablePath;
+      launchOptions.channel = undefined;
+    }
+
+    // Context options for realistic browser behavior
+    const contextOptions = {
+      viewport: this.options.viewport,
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      locale: 'en-US',
+      timezoneId: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      permissions: ['geolocation'],
+      colorScheme: 'dark' as const,
+      deviceScaleFactor: 1,
+      hasTouch: false,
+      isMobile: false,
+      javaScriptEnabled: true,
+    };
+
+    if (userDataDir) {
+      // Use persistent context (keeps login state)
+      this.context = await playwrightExtra.launchPersistentContext(
+        userDataDir,
         {
           ...launchOptions,
-          viewport: this.options.viewport,
+          ...contextOptions,
         }
       );
       this.page = this.context.pages()[0] || (await this.context.newPage());
     } else {
-      this.browser = await chromium.launch(launchOptions);
-      this.context = await this.browser.newContext({
-        viewport: this.options.viewport,
-        userAgent:
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      });
+      // Use regular browser with stealth mode
+      this.browser = await playwrightExtra.launch(launchOptions);
+      this.context = await this.browser.newContext(contextOptions);
       this.page = await this.context.newPage();
     }
+
+    // Additional stealth: override navigator properties
+    await this.page.addInitScript(() => {
+      // Override webdriver property
+      Object.defineProperty(navigator, 'webdriver', {
+        get: () => undefined,
+      });
+
+      // Override plugins
+      Object.defineProperty(navigator, 'plugins', {
+        get: () => [
+          { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer' },
+          { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai' },
+          { name: 'Native Client', filename: 'internal-nacl-plugin' },
+        ],
+      });
+
+      // Override languages
+      Object.defineProperty(navigator, 'languages', {
+        get: () => ['en-US', 'en'],
+      });
+
+      // Fix permissions query
+      const originalQuery = window.navigator.permissions.query;
+      window.navigator.permissions.query = (parameters: PermissionDescriptor) => {
+        if (parameters.name === 'notifications') {
+          return Promise.resolve({ state: 'prompt' } as PermissionStatus);
+        }
+        return originalQuery.call(window.navigator.permissions, parameters);
+      };
+    });
 
     this.page.setDefaultTimeout(this.options.timeout);
     await this.page.goto(YOUTUBE_TV_URL, { waitUntil: 'domcontentloaded' });
