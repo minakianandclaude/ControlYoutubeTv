@@ -67,6 +67,7 @@ export type RemoteButton =
   | 'volumeUp'
   | 'volumeDown'
   | 'mute'
+  | 'captions'
   | 'guide'
   | 'home'
   | 'search'

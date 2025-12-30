@@ -27,6 +27,7 @@ const KEY_MAPPINGS: Record<RemoteButton, string> = {
   volumeUp: 'ArrowUp',
   volumeDown: 'ArrowDown',
   mute: 'm',
+  captions: 'c',
   guide: 'g',
   home: 'h',
   search: '/',
@@ -424,28 +425,35 @@ export class YouTubeTVController implements IYouTubeTVController {
   async mute(): Promise<void> {
     if (!this.page) throw new Error('Controller not launched');
 
-    await this.page.evaluate(() => {
-      const video = document.querySelector('video');
-      if (video) {
-        video.muted = true;
-      }
-    });
+    // Use 'm' key to toggle mute - check state first
+    const state = await this.getPlaybackState();
+    if (!state.isMuted) {
+      await this.ensureVideoFocused();
+      await this.page.keyboard.press('m');
+    }
   }
 
   async unmute(): Promise<void> {
     if (!this.page) throw new Error('Controller not launched');
 
-    await this.page.evaluate(() => {
-      const video = document.querySelector('video');
-      if (video) {
-        video.muted = false;
-      }
-    });
+    // Use 'm' key to toggle mute - check state first
+    const state = await this.getPlaybackState();
+    if (state.isMuted) {
+      await this.ensureVideoFocused();
+      await this.page.keyboard.press('m');
+    }
   }
 
   async toggleMute(): Promise<void> {
+    if (!this.page) throw new Error('Controller not launched');
     await this.ensureVideoFocused();
-    await this.pressKey('m');
+    await this.page.keyboard.press('m');
+  }
+
+  async toggleCaptions(): Promise<void> {
+    if (!this.page) throw new Error('Controller not launched');
+    await this.ensureVideoFocused();
+    await this.page.keyboard.press('c');
   }
 
   async pressButton(button: RemoteButton): Promise<void> {
@@ -501,22 +509,20 @@ export class YouTubeTVController implements IYouTubeTVController {
     await this.page.goto('https://tv.youtube.com/live', { waitUntil: 'domcontentloaded' });
     await this.page.waitForTimeout(2000);
 
-    // Try to find and click the channel by name
+    // Find the channel name element, then click on the program cell to its right
     try {
-      // Look for channel name in the guide
-      const channelSelectors = [
-        `text="${channelName}"`,
-        `[aria-label*="${channelName}" i]`,
-        `img[alt*="${channelName}" i]`,
-      ];
+      // Find the channel name/logo element
+      const channelElement = await this.page.$(`text="${channelName}"`)
+        || await this.page.$(`[aria-label*="${channelName}" i]`)
+        || await this.page.$(`img[alt*="${channelName}" i]`);
 
-      for (const selector of channelSelectors) {
-        const element = await this.page.$(selector);
-        if (element) {
-          await element.click();
+      if (channelElement) {
+        const box = await channelElement.boundingBox();
+        if (box) {
+          // Click to the RIGHT of the channel name (on the program cell)
+          // Program cells start after the channel column, typically 200-300px to the right
+          await this.page.mouse.click(box.x + box.width + 150, box.y + box.height / 2);
           await this.page.waitForTimeout(500);
-          // Click again to start playback (first click might just focus)
-          await this.page.keyboard.press('Enter');
           return true;
         }
       }

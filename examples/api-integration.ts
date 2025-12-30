@@ -83,6 +83,10 @@ async function handleRequest(
         await controller!.unmute();
         return { success: true, data: { action: 'unmute' } };
 
+      case '/captions':
+        await controller!.toggleCaptions();
+        return { success: true, data: { action: 'toggleCaptions' } };
+
       case '/volume': {
         const params = JSON.parse(body || '{}');
         if (typeof params.level === 'number') {
@@ -279,6 +283,7 @@ server.listen(PORT, () => {
   console.log('  POST /toggle          - Toggle play/pause');
   console.log('  POST /mute            - Mute audio');
   console.log('  POST /unmute          - Unmute audio');
+  console.log('  POST /captions        - Toggle captions');
   console.log('  POST /volume          - Set volume {"level": 0.5}');
   console.log('  POST /seek            - Seek to time {"seconds": 120}');
   console.log('  POST /forward         - Skip forward {"seconds": 10}');
