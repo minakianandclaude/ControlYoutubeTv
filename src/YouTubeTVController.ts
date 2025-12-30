@@ -490,10 +490,10 @@ export class YouTubeTVController implements IYouTubeTVController {
   async gotoLive(): Promise<void> {
     if (!this.page) throw new Error('Controller not launched');
     await this.page.goto('https://tv.youtube.com/live', { waitUntil: 'domcontentloaded' });
-    await this.page.waitForTimeout(1000);
-    // Press Tab to enter navigation mode in the guide
-    await this.page.keyboard.press('Tab');
-    await this.page.waitForTimeout(200);
+    await this.page.waitForTimeout(2000);
+
+    // Click on a program cell to establish focus for arrow key navigation
+    await this.focusGuide();
   }
 
   async gotoLibrary(): Promise<void> {
@@ -512,31 +512,55 @@ export class YouTubeTVController implements IYouTubeTVController {
   async focusGuide(): Promise<void> {
     if (!this.page) throw new Error('Controller not launched');
 
-    // Try clicking on the guide grid area
+    // Click directly on a program cell to establish focus
+    // This is more reliable than Tab for the guide grid
     try {
-      const guideSelectors = [
-        '[role="grid"]',
-        '[role="listbox"]',
-        '.guide-container',
-        '[class*="guide"]',
-        '[class*="channel-list"]',
+      const programCellSelectors = [
+        // Program cells in the guide
+        '[data-test-id="program-cell"]',
+        '[class*="program-cell"]',
+        '[class*="epg-cell"]',
+        '[role="gridcell"]',
+        '[role="button"][aria-label*="PM"]',
+        '[role="button"][aria-label*="AM"]',
+        // Channel row items
+        '[class*="channel-row"] [role="button"]',
+        '[class*="guide"] [role="button"]',
+        // Fallback: any clickable item in the guide area
+        '[class*="guide"] button',
+        '[class*="live"] [role="button"]',
       ];
 
-      for (const selector of guideSelectors) {
-        const element = await this.page.$(selector);
-        if (element) {
-          await element.click();
-          await this.page.waitForTimeout(100);
+      for (const selector of programCellSelectors) {
+        const elements = await this.page.$$(selector);
+        if (elements.length > 0) {
+          // Click the first visible program cell
+          await elements[0].click();
+          await this.page.waitForTimeout(200);
+          return;
+        }
+      }
+
+      // If no specific cells found, try clicking on the first channel logo
+      const channelLogo = await this.page.$('[class*="channel-logo"], [class*="channel-icon"], img[alt]');
+      if (channelLogo) {
+        // Click to the right of the logo (on the program area)
+        const box = await channelLogo.boundingBox();
+        if (box) {
+          await this.page.mouse.click(box.x + box.width + 100, box.y + box.height / 2);
+          await this.page.waitForTimeout(200);
           return;
         }
       }
     } catch {
-      // Fallback: press Tab to cycle focus
+      // Fallback to keyboard
     }
 
-    // Press Tab multiple times to get into navigation mode
-    await this.page.keyboard.press('Tab');
-    await this.page.waitForTimeout(100);
+    // Last resort: Tab multiple times
+    for (let i = 0; i < 5; i++) {
+      await this.page.keyboard.press('Tab');
+      await this.page.waitForTimeout(100);
+    }
   }
 
   async openGuide(): Promise<void> {
@@ -654,6 +678,12 @@ export class YouTubeTVController implements IYouTubeTVController {
     } catch {
       return false;
     }
+  }
+
+  async clickAt(x: number, y: number): Promise<void> {
+    if (!this.page) throw new Error('Controller not launched');
+    await this.page.mouse.click(x, y);
+    await this.page.waitForTimeout(200);
   }
 
   async getPlaybackState(): Promise<PlaybackState> {

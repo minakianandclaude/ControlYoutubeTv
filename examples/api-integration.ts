@@ -196,6 +196,15 @@ async function handleRequest(
         return { success: false, error: 'Missing text or selector parameter' };
       }
 
+      case '/clickat': {
+        const params = JSON.parse(body || '{}');
+        if (typeof params.x === 'number' && typeof params.y === 'number') {
+          await controller!.clickAt(params.x, params.y);
+          return { success: true, data: { x: params.x, y: params.y } };
+        }
+        return { success: false, error: 'Missing x and y parameters' };
+      }
+
       case '/screenshot': {
         const buffer = await controller!.screenshot();
         return {
@@ -272,6 +281,7 @@ server.listen(PORT, () => {
   console.log('  POST /back            - Go back');
   console.log('  POST /stillwatching   - Dismiss "Still watching?" prompt');
   console.log('  POST /click           - Click text {"text": "CNN"} or selector {"selector": ".button"}');
+  console.log('  POST /clickat         - Click at coordinates {"x": 400, "y": 300}');
   console.log('  GET  /screenshot      - Take screenshot (base64)');
   console.log('\nExample usage:');
   console.log('  curl -X POST http://localhost:3000/launch');
