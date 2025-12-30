@@ -160,8 +160,10 @@ async function handleRequest(
       case '/tune': {
         const params = JSON.parse(body || '{}');
         if (params.name) {
-          const tuned = await controller!.tuneToChannel(params.name);
-          return { success: tuned, data: { channel: params.name, tuned } };
+          // autoSelectDelay: ms to wait before auto-selecting (default 10000, 0 = no auto-select)
+          const autoSelectDelay = typeof params.autoSelectDelay === 'number' ? params.autoSelectDelay : 10000;
+          const tuned = await controller!.tuneToChannel(params.name, autoSelectDelay);
+          return { success: tuned, data: { channel: params.name, tuned, autoSelectDelay } };
         }
         return { success: false, error: 'Missing name parameter' };
       }

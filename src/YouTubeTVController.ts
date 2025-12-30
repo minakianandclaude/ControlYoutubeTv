@@ -502,7 +502,8 @@ export class YouTubeTVController implements IYouTubeTVController {
   }
 
   // Navigate to a specific channel in the guide and play it
-  async tuneToChannel(channelName: string): Promise<boolean> {
+  // autoSelectDelayMs: how long to wait before auto-selecting "Join live" (default 10s, 0 = no auto-select)
+  async tuneToChannel(channelName: string, autoSelectDelayMs: number = 10000): Promise<boolean> {
     if (!this.page) throw new Error('Controller not launched');
 
     // Go to live TV guide
@@ -537,8 +538,8 @@ export class YouTubeTVController implements IYouTubeTVController {
       if (result.found) {
         // Wait for dialog or video to start
         await this.page.waitForTimeout(1000);
-        // Handle the playback selection dialog if it appears (auto-select live after 10s)
-        await this.handlePlaybackSelectionDialog('live', 10000);
+        // Handle the playback selection dialog if it appears
+        await this.handlePlaybackSelectionDialog('live', autoSelectDelayMs);
         return true;
       }
 
@@ -564,27 +565,24 @@ export class YouTubeTVController implements IYouTubeTVController {
 
   // Handle the "How would you like to begin watching?" dialog
   // choice: 'live' or 'beginning'
-  // timeoutMs: auto-select after this many ms (0 = no auto-select)
+  // autoSelectDelayMs: wait this long before auto-selecting (default 10s)
+  // Set to 0 to disable auto-select (manual only)
   async handlePlaybackSelectionDialog(
     choice: 'live' | 'beginning' = 'live',
-    timeoutMs: number = 10000
+    autoSelectDelayMs: number = 10000
   ): Promise<boolean> {
     if (!this.page) throw new Error('Controller not launched');
 
     const startTime = Date.now();
+    let dialogFound = false;
 
-    // Wait for dialog to appear (or timeout)
-    while (Date.now() - startTime < timeoutMs) {
+    // First, wait for dialog to appear (up to 5 seconds)
+    const dialogWaitTime = 5000;
+    while (Date.now() - startTime < dialogWaitTime) {
       const isVisible = await this.isPlaybackDialogVisible();
-
       if (isVisible) {
-        // Dialog is visible, make the selection
-        if (choice === 'live') {
-          await this.selectJoinLive();
-        } else {
-          await this.selectStartFromBeginning();
-        }
-        return true;
+        dialogFound = true;
+        break;
       }
 
       // Check if video is already playing (dialog didn't appear)
@@ -600,9 +598,38 @@ export class YouTubeTVController implements IYouTubeTVController {
       await this.page.waitForTimeout(500);
     }
 
-    // Timeout reached, check one more time and auto-select if visible
-    const isVisible = await this.isPlaybackDialogVisible();
-    if (isVisible) {
+    if (!dialogFound) {
+      return false; // No dialog appeared
+    }
+
+    // Dialog found - if autoSelectDelayMs is 0, don't auto-select
+    if (autoSelectDelayMs <= 0) {
+      return true; // Dialog is visible but no auto-select
+    }
+
+    // Wait the remaining time before auto-selecting
+    const elapsed = Date.now() - startTime;
+    const remainingWait = autoSelectDelayMs - elapsed;
+
+    if (remainingWait > 0) {
+      // Wait in chunks so we can check if dialog was dismissed manually
+      const checkInterval = 1000;
+      let waited = 0;
+      while (waited < remainingWait) {
+        await this.page.waitForTimeout(Math.min(checkInterval, remainingWait - waited));
+        waited += checkInterval;
+
+        // Check if dialog is still visible (user might have selected manually)
+        const stillVisible = await this.isPlaybackDialogVisible();
+        if (!stillVisible) {
+          return true; // User already selected
+        }
+      }
+    }
+
+    // Auto-select after delay
+    const stillVisible = await this.isPlaybackDialogVisible();
+    if (stillVisible) {
       if (choice === 'live') {
         await this.selectJoinLive();
       } else {
