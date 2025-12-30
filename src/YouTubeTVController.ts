@@ -620,13 +620,19 @@ export class YouTubeTVController implements IYouTubeTVController {
 
     try {
       const clicked = await this.page.evaluate(() => {
+        // Find the menu items - the clickable element is tp-yt-paper-icon-item
         const menuItems = document.querySelectorAll('ytu-selection-menu-dialog ytu-menu-item');
         for (let i = 0; i < menuItems.length; i++) {
           const item = menuItems[i];
-          const text = item.textContent?.toLowerCase() || '';
+          const textEl = item.querySelector('yt-formatted-string');
+          const text = textEl?.textContent?.toLowerCase() || '';
           if (text.includes('join live')) {
-            (item as HTMLElement).click();
-            return true;
+            // Click the tp-yt-paper-icon-item which is the actual clickable element
+            const clickable = item.querySelector('tp-yt-paper-icon-item');
+            if (clickable) {
+              (clickable as HTMLElement).click();
+              return true;
+            }
           }
         }
         return false;
@@ -647,13 +653,19 @@ export class YouTubeTVController implements IYouTubeTVController {
 
     try {
       const clicked = await this.page.evaluate(() => {
+        // Find the menu items - the clickable element is tp-yt-paper-icon-item
         const menuItems = document.querySelectorAll('ytu-selection-menu-dialog ytu-menu-item');
         for (let i = 0; i < menuItems.length; i++) {
           const item = menuItems[i];
-          const text = item.textContent?.toLowerCase() || '';
+          const textEl = item.querySelector('yt-formatted-string');
+          const text = textEl?.textContent?.toLowerCase() || '';
           if (text.includes('start from beginning') || text.includes('beginning')) {
-            (item as HTMLElement).click();
-            return true;
+            // Click the tp-yt-paper-icon-item which is the actual clickable element
+            const clickable = item.querySelector('tp-yt-paper-icon-item');
+            if (clickable) {
+              (clickable as HTMLElement).click();
+              return true;
+            }
           }
         }
         return false;
