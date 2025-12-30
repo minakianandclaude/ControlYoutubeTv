@@ -512,9 +512,10 @@ export class YouTubeTVController implements IYouTubeTVController {
     try {
       // Find the channel row and click on its first program (airing)
       const result = await this.page.evaluate((targetChannel) => {
-        const rows = document.querySelectorAll('ytu-epg-row');
+        const rows = Array.from(document.querySelectorAll('ytu-epg-row'));
 
-        for (const row of rows) {
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i];
           const networkTitle = row.querySelector('.network-title');
           const networkImg = row.querySelector('.network img[alt]');
           const channelName = networkTitle?.textContent?.trim()
