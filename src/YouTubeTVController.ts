@@ -503,6 +503,7 @@ export class YouTubeTVController implements IYouTubeTVController {
 
   // Navigate to a specific channel in the guide and play it
   // autoSelectDelayMs: how long to wait before auto-selecting "Join live" (default 10s, 0 = no auto-select)
+  // Returns immediately after clicking channel - auto-select runs in background
   async tuneToChannel(channelName: string, autoSelectDelayMs: number = 10000): Promise<boolean> {
     if (!this.page) throw new Error('Controller not launched');
 
@@ -536,10 +537,10 @@ export class YouTubeTVController implements IYouTubeTVController {
       }, channelName);
 
       if (result.found) {
-        // Wait for dialog or video to start
-        await this.page.waitForTimeout(1000);
-        // Handle the playback selection dialog if it appears
-        await this.handlePlaybackSelectionDialog('live', autoSelectDelayMs);
+        // Start background auto-select timer (non-blocking)
+        if (autoSelectDelayMs > 0) {
+          this.startAutoSelectTimer(autoSelectDelayMs);
+        }
         return true;
       }
 
@@ -549,6 +550,48 @@ export class YouTubeTVController implements IYouTubeTVController {
     } catch {
       return false;
     }
+  }
+
+  // Background timer for auto-selecting "Join live" after delay
+  // This runs asynchronously and doesn't block the caller
+  private startAutoSelectTimer(delayMs: number): void {
+    // Run in background - don't await
+    (async () => {
+      if (!this.page) return;
+
+      try {
+        // Wait a moment for dialog to appear
+        await this.page.waitForTimeout(1000);
+
+        // Check if dialog appeared
+        let dialogVisible = await this.isPlaybackDialogVisible();
+        if (!dialogVisible) {
+          // No dialog, video probably started directly
+          return;
+        }
+
+        // Wait the configured delay, checking periodically if dialog dismissed
+        const checkInterval = 1000;
+        let waited = 0;
+        while (waited < delayMs) {
+          await this.page.waitForTimeout(checkInterval);
+          waited += checkInterval;
+
+          // Check if dialog still visible (user may have selected manually)
+          dialogVisible = await this.isPlaybackDialogVisible();
+          if (!dialogVisible) {
+            return; // User already made selection
+          }
+        }
+
+        // Auto-select "Join live" after delay
+        if (await this.isPlaybackDialogVisible()) {
+          await this.selectJoinLive();
+        }
+      } catch {
+        // Ignore errors in background task
+      }
+    })();
   }
 
   // Check if the playback selection dialog is visible
