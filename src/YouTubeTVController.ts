@@ -452,15 +452,46 @@ export class YouTubeTVController implements IYouTubeTVController {
   }
 
   async navigate(direction: 'up' | 'down' | 'left' | 'right'): Promise<void> {
-    await this.pressButton(direction);
+    if (!this.page) throw new Error('Controller not launched');
+
+    const keyMap = {
+      up: 'ArrowUp',
+      down: 'ArrowDown',
+      left: 'ArrowLeft',
+      right: 'ArrowRight',
+    };
+
+    // Click on the page first to ensure focus
+    await this.page.click('body', { force: true }).catch(() => {});
+    await this.page.keyboard.press(keyMap[direction]);
+    // Small delay to allow UI to animate/update selection
+    await this.page.waitForTimeout(150);
   }
 
   async select(): Promise<void> {
-    await this.pressButton('enter');
+    if (!this.page) throw new Error('Controller not launched');
+
+    await this.page.click('body', { force: true }).catch(() => {});
+    await this.page.keyboard.press('Enter');
+    await this.page.waitForTimeout(500);
   }
 
   async back(): Promise<void> {
-    await this.pressButton('back');
+    if (!this.page) throw new Error('Controller not launched');
+
+    await this.page.keyboard.press('Escape');
+    await this.page.waitForTimeout(200);
+  }
+
+  // Direct URL navigation - more reliable than keyboard
+  async gotoLive(): Promise<void> {
+    if (!this.page) throw new Error('Controller not launched');
+    await this.page.goto('https://tv.youtube.com/live', { waitUntil: 'domcontentloaded' });
+  }
+
+  async gotoLibrary(): Promise<void> {
+    if (!this.page) throw new Error('Controller not launched');
+    await this.page.goto('https://tv.youtube.com/library', { waitUntil: 'domcontentloaded' });
   }
 
   async goHome(): Promise<void> {

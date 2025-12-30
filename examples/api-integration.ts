@@ -119,6 +119,14 @@ async function handleRequest(
         await controller!.openGuide();
         return { success: true, data: { action: 'openGuide' } };
 
+      case '/live':
+        await controller!.gotoLive();
+        return { success: true, data: { action: 'gotoLive' } };
+
+      case '/library':
+        await controller!.gotoLibrary();
+        return { success: true, data: { action: 'gotoLibrary' } };
+
       case '/home':
         await controller!.goHome();
         return { success: true, data: { action: 'goHome' } };
@@ -245,6 +253,8 @@ server.listen(PORT, () => {
   console.log('  POST /forward         - Skip forward {"seconds": 10}');
   console.log('  POST /rewind          - Skip backward {"seconds": 10}');
   console.log('  POST /guide           - Open live TV guide');
+  console.log('  POST /live            - Go to live TV (direct URL)');
+  console.log('  POST /library         - Go to library (direct URL)');
   console.log('  POST /home            - Go to home screen');
   console.log('  POST /search          - Search {"query": "news"}');
   console.log('  POST /channel         - Play channel {"name": "CNN"}');
