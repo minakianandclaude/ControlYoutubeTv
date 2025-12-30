@@ -115,22 +115,33 @@ export class YouTubeTVController implements IYouTubeTVController {
   }
 
   async launch(): Promise<void> {
-    // Determine which executable to use
-    let executablePath = this.options.executablePath;
-    if (!executablePath && this.options.useSystemChrome) {
-      executablePath = findChromeExecutable() || '';
-      if (!executablePath) {
-        console.warn('Could not find system Chrome, using Playwright Chromium');
-      }
-    }
-
-    // Determine user data directory
+    // Determine user data directory first
     let userDataDir = this.options.userDataDir;
     if (!userDataDir && this.options.useChromeProfile) {
       userDataDir = this.options.chromeProfilePath;
     }
 
-    // Base launch arguments to reduce automation detection
+    // Determine which executable to use
+    // Chrome (not Chromium) is required for video codec support
+    let executablePath = this.options.executablePath;
+    if (!executablePath) {
+      // Always try to find Chrome for codec support
+      executablePath = findChromeExecutable() || '';
+    }
+
+    if (executablePath) {
+      console.log('Using Chrome:', executablePath);
+    } else if (userDataDir) {
+      // When using persistent context, we need Chrome for codecs
+      throw new Error(
+        'Chrome not found. Chrome is required for video playback (codec support).\n' +
+        'Please install Google Chrome or specify executablePath in options.'
+      );
+    } else {
+      console.log('Chrome not found, using Playwright channel: chrome');
+    }
+
+    // Base launch arguments to reduce automation detection and enable codecs
     const args = [
       '--disable-blink-features=AutomationControlled',
       '--disable-features=IsolateOrigins,site-per-process',
@@ -140,6 +151,7 @@ export class YouTubeTVController implements IYouTubeTVController {
       '--disable-background-timer-throttling',
       '--disable-backgrounding-occluded-windows',
       '--disable-renderer-backgrounding',
+      '--autoplay-policy=no-user-gesture-required',
     ];
 
     const launchOptions: LaunchOptions = {
@@ -148,11 +160,11 @@ export class YouTubeTVController implements IYouTubeTVController {
       args,
     };
 
-    // Use system Chrome if specified and available
+    // Use Chrome executable for codec support
     if (executablePath) {
       launchOptions.executablePath = executablePath;
     } else {
-      // Use Playwright's bundled Chrome channel for better compatibility
+      // Fallback to channel: 'chrome' (only works without persistent context)
       launchOptions.channel = 'chrome';
     }
 
