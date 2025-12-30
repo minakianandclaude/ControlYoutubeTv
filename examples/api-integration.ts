@@ -127,6 +127,10 @@ async function handleRequest(
         await controller!.gotoLibrary();
         return { success: true, data: { action: 'gotoLibrary' } };
 
+      case '/focus':
+        await controller!.focusGuide();
+        return { success: true, data: { action: 'focusGuide' } };
+
       case '/home':
         await controller!.goHome();
         return { success: true, data: { action: 'goHome' } };

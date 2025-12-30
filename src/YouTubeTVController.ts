@@ -487,16 +487,53 @@ export class YouTubeTVController implements IYouTubeTVController {
   async gotoLive(): Promise<void> {
     if (!this.page) throw new Error('Controller not launched');
     await this.page.goto('https://tv.youtube.com/live', { waitUntil: 'domcontentloaded' });
+    await this.page.waitForTimeout(1000);
+    // Press Tab to enter navigation mode in the guide
+    await this.page.keyboard.press('Tab');
+    await this.page.waitForTimeout(200);
   }
 
   async gotoLibrary(): Promise<void> {
     if (!this.page) throw new Error('Controller not launched');
     await this.page.goto('https://tv.youtube.com/library', { waitUntil: 'domcontentloaded' });
+    await this.page.waitForTimeout(500);
   }
 
   async goHome(): Promise<void> {
     if (!this.page) throw new Error('Controller not launched');
     await this.page.goto(YOUTUBE_TV_URL, { waitUntil: 'domcontentloaded' });
+    await this.page.waitForTimeout(500);
+  }
+
+  // Focus the channel guide for navigation
+  async focusGuide(): Promise<void> {
+    if (!this.page) throw new Error('Controller not launched');
+
+    // Try clicking on the guide grid area
+    try {
+      const guideSelectors = [
+        '[role="grid"]',
+        '[role="listbox"]',
+        '.guide-container',
+        '[class*="guide"]',
+        '[class*="channel-list"]',
+      ];
+
+      for (const selector of guideSelectors) {
+        const element = await this.page.$(selector);
+        if (element) {
+          await element.click();
+          await this.page.waitForTimeout(100);
+          return;
+        }
+      }
+    } catch {
+      // Fallback: press Tab to cycle focus
+    }
+
+    // Press Tab multiple times to get into navigation mode
+    await this.page.keyboard.press('Tab');
+    await this.page.waitForTimeout(100);
   }
 
   async openGuide(): Promise<void> {
