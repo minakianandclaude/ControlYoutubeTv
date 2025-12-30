@@ -179,6 +179,10 @@ async function handleRequest(
         await controller!.back();
         return { success: true, data: { action: 'back' } };
 
+      case '/stillwatching':
+        const dismissed = await controller!.handleStillWatching();
+        return { success: true, data: { dismissed } };
+
       case '/click': {
         const params = JSON.parse(body || '{}');
         if (params.text) {
@@ -266,6 +270,7 @@ server.listen(PORT, () => {
   console.log('  POST /navigate        - Navigate {"direction": "up"}');
   console.log('  POST /select          - Select current item');
   console.log('  POST /back            - Go back');
+  console.log('  POST /stillwatching   - Dismiss "Still watching?" prompt');
   console.log('  POST /click           - Click text {"text": "CNN"} or selector {"selector": ".button"}');
   console.log('  GET  /screenshot      - Take screenshot (base64)');
   console.log('\nExample usage:');

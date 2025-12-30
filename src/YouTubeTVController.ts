@@ -368,23 +368,29 @@ export class YouTubeTVController implements IYouTubeTVController {
   async seekForward(seconds: number = 10): Promise<void> {
     if (!this.page) throw new Error('Controller not launched');
 
-    await this.page.evaluate((skipSeconds) => {
-      const video = document.querySelector('video');
-      if (video) {
-        video.currentTime += skipSeconds;
+    // Use 'l' key for forward skip (10 seconds per press)
+    await this.ensureVideoFocused();
+    const presses = Math.max(1, Math.round(seconds / 10));
+    for (let i = 0; i < presses; i++) {
+      await this.page.keyboard.press('l');
+      if (i < presses - 1) {
+        await this.page.waitForTimeout(100);
       }
-    }, seconds);
+    }
   }
 
   async seekBackward(seconds: number = 10): Promise<void> {
     if (!this.page) throw new Error('Controller not launched');
 
-    await this.page.evaluate((skipSeconds) => {
-      const video = document.querySelector('video');
-      if (video) {
-        video.currentTime -= skipSeconds;
+    // Use 'j' key for backward skip (10 seconds per press)
+    await this.ensureVideoFocused();
+    const presses = Math.max(1, Math.round(seconds / 10));
+    for (let i = 0; i < presses; i++) {
+      await this.page.keyboard.press('j');
+      if (i < presses - 1) {
+        await this.page.waitForTimeout(100);
       }
-    }, seconds);
+    }
   }
 
   async setVolume(level: number): Promise<void> {
@@ -402,23 +408,17 @@ export class YouTubeTVController implements IYouTubeTVController {
   async volumeUp(): Promise<void> {
     if (!this.page) throw new Error('Controller not launched');
 
-    await this.page.evaluate(() => {
-      const video = document.querySelector('video');
-      if (video) {
-        video.volume = Math.min(1, video.volume + 0.1);
-      }
-    });
+    // Focus video player and use keyboard for volume
+    await this.ensureVideoFocused();
+    await this.page.keyboard.press('ArrowUp');
   }
 
   async volumeDown(): Promise<void> {
     if (!this.page) throw new Error('Controller not launched');
 
-    await this.page.evaluate(() => {
-      const video = document.querySelector('video');
-      if (video) {
-        video.volume = Math.max(0, video.volume - 0.1);
-      }
-    });
+    // Focus video player and use keyboard for volume
+    await this.ensureVideoFocused();
+    await this.page.keyboard.press('ArrowDown');
   }
 
   async mute(): Promise<void> {
@@ -466,17 +466,15 @@ export class YouTubeTVController implements IYouTubeTVController {
       right: 'ArrowRight',
     };
 
-    // Click on the page first to ensure focus
-    await this.page.click('body', { force: true }).catch(() => {});
+    // Don't click body - it resets the cursor/selection!
     await this.page.keyboard.press(keyMap[direction]);
-    // Small delay to allow UI to animate/update selection
-    await this.page.waitForTimeout(150);
+    await this.page.waitForTimeout(100);
   }
 
   async select(): Promise<void> {
     if (!this.page) throw new Error('Controller not launched');
 
-    await this.page.click('body', { force: true }).catch(() => {});
+    // Don't click body - just press Enter
     await this.page.keyboard.press('Enter');
     await this.page.waitForTimeout(500);
   }
@@ -591,43 +589,43 @@ export class YouTubeTVController implements IYouTubeTVController {
   async playChannel(channelName: string): Promise<void> {
     if (!this.page) throw new Error('Controller not launched');
 
-    // Try searching for the channel first (more reliable)
+    // Search for the channel
     await this.search(channelName);
     await this.page.waitForTimeout(2000);
 
-    // Try to click on the first result that matches
+    // Use Tab to enter the results area, then arrow to first result
+    await this.page.keyboard.press('Tab');
+    await this.page.waitForTimeout(200);
+    await this.page.keyboard.press('ArrowDown');
+    await this.page.waitForTimeout(200);
+    await this.page.keyboard.press('Enter');
+  }
+
+  async handleStillWatching(): Promise<boolean> {
+    if (!this.page) throw new Error('Controller not launched');
+
     try {
-      // Look for clickable items in search results
-      const selectors = [
-        `[aria-label*="${channelName}" i]`,
-        `text="${channelName}"`,
-        `text=${channelName}`,
-        '.ytlr-tile-renderer',
-        '[class*="card"]',
-        '[class*="tile"]',
+      // Look for "Still watching?" or "Continue watching" prompt
+      const stillWatchingSelectors = [
+        'text="Still watching?"',
+        'text="Continue watching"',
+        'text="Yes"',
+        '[aria-label*="still watching" i]',
+        '[aria-label*="continue watching" i]',
       ];
 
-      for (const selector of selectors) {
-        try {
-          const element = await this.page.$(selector);
-          if (element) {
-            await element.click();
-            return;
-          }
-        } catch {
-          continue;
+      for (const selector of stillWatchingSelectors) {
+        const element = await this.page.$(selector);
+        if (element) {
+          // Found the prompt, press Enter or click to dismiss
+          await this.page.keyboard.press('Enter');
+          await this.page.waitForTimeout(500);
+          return true;
         }
       }
-
-      // Fallback: navigate with keyboard
-      await this.page.waitForTimeout(500);
-      await this.navigate('down');
-      await this.page.waitForTimeout(300);
-      await this.select();
+      return false;
     } catch {
-      // Final fallback
-      await this.navigate('down');
-      await this.select();
+      return false;
     }
   }
 
@@ -741,25 +739,12 @@ export class YouTubeTVController implements IYouTubeTVController {
   private async ensurePageFocused(): Promise<void> {
     if (!this.page) return;
 
+    // Don't blur or click body - it destroys TV interface focus state
+    // Just ensure the page frame is active
     try {
-      // Click on the body to ensure the page receives keyboard events
-      await this.page.evaluate(() => {
-        // Remove focus from any input elements
-        if (document.activeElement instanceof HTMLElement) {
-          document.activeElement.blur();
-        }
-        // Focus the body
-        document.body.focus();
-        // Also try clicking on the main content area
-        const mainContent = document.querySelector('ytlr-app, #content, main, body');
-        if (mainContent instanceof HTMLElement) {
-          mainContent.focus();
-        }
-      });
-      // Small delay to ensure focus is set
-      await this.page.waitForTimeout(50);
+      await this.page.bringToFront();
     } catch {
-      // Ignore focus errors
+      // Ignore errors
     }
   }
 
