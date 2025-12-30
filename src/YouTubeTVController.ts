@@ -152,6 +152,11 @@ export class YouTubeTVController implements IYouTubeTVController {
       '--disable-backgrounding-occluded-windows',
       '--disable-renderer-backgrounding',
       '--autoplay-policy=no-user-gesture-required',
+      // Prevent "Restore pages?" popup
+      '--hide-crash-restore-bubble',
+      '--disable-session-crashed-bubble',
+      '--noerrdialogs',
+      '--disable-features=InfiniteSessionRestore',
     ];
 
     const launchOptions: LaunchOptions = {
