@@ -176,6 +176,11 @@ async function handleRequest(
         return { success: true, data: { guide: guideData } };
       }
 
+      case '/debug': {
+        const debugInfo = await controller!.debugPageStructure();
+        return { success: true, data: debugInfo };
+      }
+
       case '/button': {
         const params = JSON.parse(body || '{}');
         if (params.button) {

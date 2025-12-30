@@ -705,6 +705,78 @@ export class YouTubeTVController implements IYouTubeTVController {
     });
   }
 
+  // Debug method to inspect the page structure
+  async debugPageStructure(): Promise<{
+    url: string;
+    title: string;
+    elements: Array<{
+      tag: string;
+      classes: string;
+      ariaLabel: string | null;
+      text: string;
+      alt: string | null;
+    }>;
+  }> {
+    if (!this.page) throw new Error('Controller not launched');
+
+    return await this.page.evaluate(() => {
+      const elements: Array<{
+        tag: string;
+        classes: string;
+        ariaLabel: string | null;
+        text: string;
+        alt: string | null;
+      }> = [];
+
+      // Look for anything that might be a channel or program
+      const selectors = [
+        'img[alt]',
+        '[role="row"]',
+        '[role="gridcell"]',
+        '[role="button"]',
+        '[aria-label]',
+        '[class*="channel"]',
+        '[class*="program"]',
+        '[class*="guide"]',
+        '[class*="live"]',
+        '[class*="epg"]',
+      ];
+
+      const seen = new Set<Element>();
+
+      for (const selector of selectors) {
+        const els = document.querySelectorAll(selector);
+        els.forEach((el) => {
+          if (seen.has(el)) return;
+          seen.add(el);
+
+          const text = el.textContent?.trim().slice(0, 100) || '';
+          const classes = el.className?.toString?.() || '';
+
+          // Only include elements with meaningful content
+          if (text || el.getAttribute('aria-label') || (el as HTMLImageElement).alt) {
+            elements.push({
+              tag: el.tagName.toLowerCase(),
+              classes: classes.slice(0, 200),
+              ariaLabel: el.getAttribute('aria-label')?.slice(0, 200) || null,
+              text: text.slice(0, 100),
+              alt: (el as HTMLImageElement).alt?.slice(0, 100) || null,
+            });
+          }
+        });
+
+        // Limit to avoid huge output
+        if (elements.length > 100) break;
+      }
+
+      return {
+        url: window.location.href,
+        title: document.title,
+        elements,
+      };
+    });
+  }
+
   async gotoLibrary(): Promise<void> {
     if (!this.page) throw new Error('Controller not launched');
     await this.page.goto('https://tv.youtube.com/library', { waitUntil: 'domcontentloaded' });
