@@ -166,6 +166,21 @@ async function handleRequest(
         return { success: false, error: 'Missing name parameter' };
       }
 
+      case '/join-live': {
+        const selected = await controller!.selectJoinLive();
+        return { success: selected, data: { action: 'joinLive', selected } };
+      }
+
+      case '/start-beginning': {
+        const selected = await controller!.selectStartFromBeginning();
+        return { success: selected, data: { action: 'startFromBeginning', selected } };
+      }
+
+      case '/playback-dialog': {
+        const isVisible = await controller!.isPlaybackDialogVisible();
+        return { success: true, data: { dialogVisible: isVisible } };
+      }
+
       case '/channels': {
         const channels = await controller!.getChannelList();
         return { success: true, data: { channels } };
@@ -305,6 +320,9 @@ server.listen(PORT, () => {
   console.log('  POST /search          - Search {"query": "news"}');
   console.log('  POST /channel         - Play channel via search {"name": "CNN"}');
   console.log('  POST /tune            - Tune to channel in guide {"name": "CBS"}');
+  console.log('  POST /join-live       - Select "Join live" in playback dialog');
+  console.log('  POST /start-beginning - Select "Start from beginning" in playback dialog');
+  console.log('  GET  /playback-dialog - Check if playback selection dialog is visible');
   console.log('  GET  /channels        - Get list of visible channels');
   console.log('  GET  /guide-data      - Get full guide (channels + programs + times)');
   console.log('  POST /button          - Press button {"button": "enter"}');

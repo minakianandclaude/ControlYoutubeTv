@@ -535,13 +535,134 @@ export class YouTubeTVController implements IYouTubeTVController {
       }, channelName);
 
       if (result.found) {
+        // Wait for dialog or video to start
         await this.page.waitForTimeout(1000);
+        // Handle the playback selection dialog if it appears (auto-select live after 10s)
+        await this.handlePlaybackSelectionDialog('live', 10000);
         return true;
       }
 
       // Fallback: search for the channel
       await this.playChannel(channelName);
       return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // Check if the playback selection dialog is visible
+  async isPlaybackDialogVisible(): Promise<boolean> {
+    if (!this.page) throw new Error('Controller not launched');
+
+    return await this.page.evaluate(() => {
+      const dialog = document.querySelector('ytu-selection-menu-dialog tp-yt-paper-dialog');
+      if (!dialog) return false;
+      const style = window.getComputedStyle(dialog);
+      return style.display !== 'none' && style.visibility !== 'hidden';
+    });
+  }
+
+  // Handle the "How would you like to begin watching?" dialog
+  // choice: 'live' or 'beginning'
+  // timeoutMs: auto-select after this many ms (0 = no auto-select)
+  async handlePlaybackSelectionDialog(
+    choice: 'live' | 'beginning' = 'live',
+    timeoutMs: number = 10000
+  ): Promise<boolean> {
+    if (!this.page) throw new Error('Controller not launched');
+
+    const startTime = Date.now();
+
+    // Wait for dialog to appear (or timeout)
+    while (Date.now() - startTime < timeoutMs) {
+      const isVisible = await this.isPlaybackDialogVisible();
+
+      if (isVisible) {
+        // Dialog is visible, make the selection
+        if (choice === 'live') {
+          await this.selectJoinLive();
+        } else {
+          await this.selectStartFromBeginning();
+        }
+        return true;
+      }
+
+      // Check if video is already playing (dialog didn't appear)
+      const isPlaying = await this.page.evaluate(() => {
+        const video = document.querySelector('video');
+        return video && !video.paused && video.readyState >= 2;
+      });
+
+      if (isPlaying) {
+        return false; // No dialog needed, video started
+      }
+
+      await this.page.waitForTimeout(500);
+    }
+
+    // Timeout reached, check one more time and auto-select if visible
+    const isVisible = await this.isPlaybackDialogVisible();
+    if (isVisible) {
+      if (choice === 'live') {
+        await this.selectJoinLive();
+      } else {
+        await this.selectStartFromBeginning();
+      }
+      return true;
+    }
+
+    return false;
+  }
+
+  // Select "Join live" in the playback dialog
+  async selectJoinLive(): Promise<boolean> {
+    if (!this.page) throw new Error('Controller not launched');
+
+    try {
+      const clicked = await this.page.evaluate(() => {
+        const menuItems = document.querySelectorAll('ytu-selection-menu-dialog ytu-menu-item');
+        for (let i = 0; i < menuItems.length; i++) {
+          const item = menuItems[i];
+          const text = item.textContent?.toLowerCase() || '';
+          if (text.includes('join live')) {
+            (item as HTMLElement).click();
+            return true;
+          }
+        }
+        return false;
+      });
+
+      if (clicked) {
+        await this.page.waitForTimeout(500);
+      }
+      return clicked;
+    } catch {
+      return false;
+    }
+  }
+
+  // Select "Start from beginning" in the playback dialog
+  async selectStartFromBeginning(): Promise<boolean> {
+    if (!this.page) throw new Error('Controller not launched');
+
+    try {
+      const clicked = await this.page.evaluate(() => {
+        const menuItems = document.querySelectorAll('ytu-selection-menu-dialog ytu-menu-item');
+        for (let i = 0; i < menuItems.length; i++) {
+          const item = menuItems[i];
+          const text = item.textContent?.toLowerCase() || '';
+          if (text.includes('start from beginning') || text.includes('beginning')) {
+            (item as HTMLElement).click();
+            return true;
+          }
+        }
+        return false;
+      });
+
+      if (clicked) {
+        await this.page.waitForTimeout(500);
+      }
+      return clicked;
     } catch {
       return false;
     }
