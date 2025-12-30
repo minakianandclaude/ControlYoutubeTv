@@ -491,9 +491,70 @@ export class YouTubeTVController implements IYouTubeTVController {
     if (!this.page) throw new Error('Controller not launched');
     await this.page.goto('https://tv.youtube.com/live', { waitUntil: 'domcontentloaded' });
     await this.page.waitForTimeout(2000);
+  }
 
-    // Click on a program cell to establish focus for arrow key navigation
-    await this.focusGuide();
+  // Navigate to a specific channel in the guide and play it
+  async tuneToChannel(channelName: string): Promise<boolean> {
+    if (!this.page) throw new Error('Controller not launched');
+
+    // Go to live TV guide
+    await this.page.goto('https://tv.youtube.com/live', { waitUntil: 'domcontentloaded' });
+    await this.page.waitForTimeout(2000);
+
+    // Try to find and click the channel by name
+    try {
+      // Look for channel name in the guide
+      const channelSelectors = [
+        `text="${channelName}"`,
+        `[aria-label*="${channelName}" i]`,
+        `img[alt*="${channelName}" i]`,
+      ];
+
+      for (const selector of channelSelectors) {
+        const element = await this.page.$(selector);
+        if (element) {
+          await element.click();
+          await this.page.waitForTimeout(500);
+          // Click again to start playback (first click might just focus)
+          await this.page.keyboard.press('Enter');
+          return true;
+        }
+      }
+
+      // Fallback: search for the channel
+      await this.playChannel(channelName);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // Get list of visible channels in the guide
+  async getChannelList(): Promise<string[]> {
+    if (!this.page) throw new Error('Controller not launched');
+
+    return await this.page.evaluate(() => {
+      const channels: string[] = [];
+      // Try various selectors for channel names
+      const selectors = [
+        '[class*="channel"] [class*="name"]',
+        '[class*="channel-logo"]',
+        '[class*="station"]',
+        'img[alt]',
+      ];
+
+      for (const selector of selectors) {
+        const elements = document.querySelectorAll(selector);
+        elements.forEach((el) => {
+          const text = el.textContent?.trim() || (el as HTMLImageElement).alt?.trim();
+          if (text && text.length > 1 && text.length < 50 && !channels.includes(text)) {
+            channels.push(text);
+          }
+        });
+        if (channels.length > 5) break;
+      }
+      return channels;
+    });
   }
 
   async gotoLibrary(): Promise<void> {

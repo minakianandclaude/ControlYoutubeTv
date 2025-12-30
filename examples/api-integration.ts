@@ -153,6 +153,20 @@ async function handleRequest(
         return { success: false, error: 'Missing name parameter' };
       }
 
+      case '/tune': {
+        const params = JSON.parse(body || '{}');
+        if (params.name) {
+          const tuned = await controller!.tuneToChannel(params.name);
+          return { success: tuned, data: { channel: params.name, tuned } };
+        }
+        return { success: false, error: 'Missing name parameter' };
+      }
+
+      case '/channels': {
+        const channels = await controller!.getChannelList();
+        return { success: true, data: { channels } };
+      }
+
       case '/button': {
         const params = JSON.parse(body || '{}');
         if (params.button) {
@@ -274,7 +288,9 @@ server.listen(PORT, () => {
   console.log('  POST /library         - Go to library (direct URL)');
   console.log('  POST /home            - Go to home screen');
   console.log('  POST /search          - Search {"query": "news"}');
-  console.log('  POST /channel         - Play channel {"name": "CNN"}');
+  console.log('  POST /channel         - Play channel via search {"name": "CNN"}');
+  console.log('  POST /tune            - Tune to channel in guide {"name": "CBS"}');
+  console.log('  GET  /channels        - Get list of visible channels');
   console.log('  POST /button          - Press button {"button": "enter"}');
   console.log('  POST /navigate        - Navigate {"direction": "up"}');
   console.log('  POST /select          - Select current item');
