@@ -174,7 +174,8 @@ export class YouTubeTVController implements IYouTubeTVController {
       // CRITICAL:
       // - '--disable-component-update' must be ignored to allow Widevine CDM download for DRM
       // - '--enable-automation' must be ignored to remove "controlled by automation" banner
-      ignoreDefaultArgs: ['--disable-component-update', '--enable-automation'],
+      // - '--no-sandbox' causes stability issues on some systems
+      ignoreDefaultArgs: ['--disable-component-update', '--enable-automation', '--no-sandbox'],
     };
 
     // Use Chrome executable for codec support
@@ -186,19 +187,25 @@ export class YouTubeTVController implements IYouTubeTVController {
     }
 
     // Context options for realistic browser behavior
-    const contextOptions = {
-      // Use null viewport for fullscreen to allow browser to use full screen size
-      viewport: this.options.startFullscreen ? null : this.options.viewport,
+    // Note: deviceScaleFactor is not compatible with null viewport (fullscreen mode)
+    const contextOptions: Record<string, unknown> = {
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       locale: 'en-US',
       timezoneId: Intl.DateTimeFormat().resolvedOptions().timeZone,
       colorScheme: 'dark' as const,
-      deviceScaleFactor: 1,
       hasTouch: false,
       isMobile: false,
       javaScriptEnabled: true,
       bypassCSP: true,
     };
+
+    // Set viewport and deviceScaleFactor only when not in fullscreen mode
+    if (this.options.startFullscreen) {
+      contextOptions.viewport = null;
+    } else {
+      contextOptions.viewport = this.options.viewport;
+      contextOptions.deviceScaleFactor = 1;
+    }
 
     try {
       if (userDataDir) {
