@@ -159,11 +159,14 @@ export class YouTubeTVController implements IYouTubeTVController {
       '--disable-session-crashed-bubble',
       '--noerrdialogs',
       '--disable-features=InfiniteSessionRestore',
+      // Allow fullscreen without user gesture
+      '--disable-gesture-requirement-for-presentation',
     ];
 
     // Add fullscreen flag if requested
+    // Use --kiosk for true fullscreen (bypasses fullscreen API restrictions)
     if (this.options.startFullscreen) {
-      args.push('--start-fullscreen');
+      args.push('--kiosk');
     }
 
     const launchOptions: LaunchOptions = {
@@ -474,8 +477,58 @@ export class YouTubeTVController implements IYouTubeTVController {
 
   async toggleFullscreen(): Promise<void> {
     if (!this.page) throw new Error('Controller not launched');
-    await this.ensureVideoFocused();
-    await this.page.keyboard.press('f');
+
+    // Try clicking the fullscreen button directly (more reliable than keyboard)
+    // YouTube TV uses various selectors for the fullscreen button
+    const fullscreenSelectors = [
+      'button[aria-label*="fullscreen" i]',
+      'button[aria-label*="full screen" i]',
+      '[class*="fullscreen-button"]',
+      '[class*="fullscreen_button"]',
+      '.ytp-fullscreen-button',
+      'button[title*="fullscreen" i]',
+    ];
+
+    for (const selector of fullscreenSelectors) {
+      try {
+        const button = await this.page.$(selector);
+        if (button) {
+          await button.click();
+          await this.page.waitForTimeout(500);
+          return;
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    // Fallback: try using JavaScript to request fullscreen on video element
+    const fullscreened = await this.page.evaluate(() => {
+      const video = document.querySelector('video');
+      if (video) {
+        // Try to find the video's container for better fullscreen experience
+        const container = video.closest('.html5-video-container')
+          || video.closest('[class*="player"]')
+          || video.parentElement;
+
+        const target = container || video;
+
+        if (document.fullscreenElement) {
+          document.exitFullscreen().catch(() => {});
+          return true;
+        } else if (target.requestFullscreen) {
+          target.requestFullscreen().catch(() => {});
+          return true;
+        }
+      }
+      return false;
+    });
+
+    if (!fullscreened) {
+      // Last resort: try keyboard shortcut
+      await this.ensureVideoFocused();
+      await this.page.keyboard.press('f');
+    }
   }
 
   async pressButton(button: RemoteButton): Promise<void> {
