@@ -35,15 +35,19 @@ async function handleRequest(
 
   try {
     switch (pathname) {
-      case '/launch':
+      case '/launch': {
         if (!controller) {
+          const params = JSON.parse(body || '{}');
+          const startFullscreen = params.fullscreen === true;
           controller = new YouTubeTVController({
             headless: false,
             userDataDir: USER_DATA_DIR,
+            startFullscreen,
           });
           await controller.launch();
         }
         return { success: true, data: { message: 'Controller launched' } };
+      }
 
       case '/close':
         if (controller) {
@@ -86,6 +90,10 @@ async function handleRequest(
       case '/captions':
         await controller!.toggleCaptions();
         return { success: true, data: { action: 'toggleCaptions' } };
+
+      case '/fullscreen':
+        await controller!.toggleFullscreen();
+        return { success: true, data: { action: 'toggleFullscreen' } };
 
       case '/volume': {
         const params = JSON.parse(body || '{}');
@@ -301,7 +309,7 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(`YouTube TV Controller API running on http://localhost:${PORT}`);
   console.log('\nAvailable endpoints:');
-  console.log('  POST /launch          - Launch the browser');
+  console.log('  POST /launch          - Launch browser {"fullscreen": true}');
   console.log('  POST /close           - Close the browser');
   console.log('  GET  /status          - Get controller status');
   console.log('  GET  /playback        - Get playback state');
@@ -311,6 +319,7 @@ server.listen(PORT, () => {
   console.log('  POST /mute            - Mute audio');
   console.log('  POST /unmute          - Unmute audio');
   console.log('  POST /captions        - Toggle captions');
+  console.log('  POST /fullscreen      - Toggle fullscreen');
   console.log('  POST /volume          - Set volume {"level": 0.5}');
   console.log('  POST /seek            - Seek to time {"seconds": 120}');
   console.log('  POST /forward         - Skip forward {"seconds": 10}');
@@ -336,9 +345,9 @@ server.listen(PORT, () => {
   console.log('  POST /clickat         - Click at coordinates {"x": 400, "y": 300}');
   console.log('  GET  /screenshot      - Take screenshot (base64)');
   console.log('\nExample usage:');
-  console.log('  curl -X POST http://localhost:3000/launch');
+  console.log('  curl -X POST http://localhost:3000/launch -d \'{"fullscreen": true}\'');
   console.log('  curl http://localhost:3000/status');
-  console.log('  curl -X POST http://localhost:3000/play');
+  console.log('  curl -X POST http://localhost:3000/fullscreen');
 });
 
 // Graceful shutdown

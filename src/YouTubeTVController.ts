@@ -99,6 +99,7 @@ export class YouTubeTVController implements IYouTubeTVController {
     useChromeProfile: boolean;
     chromeProfilePath: string;
     executablePath: string;
+    startFullscreen: boolean;
   };
 
   constructor(options: YouTubeTVControllerOptions = {}) {
@@ -112,6 +113,7 @@ export class YouTubeTVController implements IYouTubeTVController {
       useChromeProfile: options.useChromeProfile ?? false,
       chromeProfilePath: options.chromeProfilePath ?? getDefaultChromeProfilePath(),
       executablePath: options.executablePath ?? '',
+      startFullscreen: options.startFullscreen ?? false,
     };
   }
 
@@ -160,12 +162,19 @@ export class YouTubeTVController implements IYouTubeTVController {
       '--disable-features=InfiniteSessionRestore',
     ];
 
+    // Add fullscreen flag if requested
+    if (this.options.startFullscreen) {
+      args.push('--start-fullscreen');
+    }
+
     const launchOptions: LaunchOptions = {
       headless: this.options.headless,
       slowMo: this.options.slowMo,
       args,
-      // CRITICAL: Allow Chrome to download Widevine CDM for DRM video playback
-      ignoreDefaultArgs: ['--disable-component-update'],
+      // CRITICAL:
+      // - '--disable-component-update' must be ignored to allow Widevine CDM download for DRM
+      // - '--enable-automation' must be ignored to remove "controlled by automation" banner
+      ignoreDefaultArgs: ['--disable-component-update', '--enable-automation'],
     };
 
     // Use Chrome executable for codec support
@@ -178,7 +187,8 @@ export class YouTubeTVController implements IYouTubeTVController {
 
     // Context options for realistic browser behavior
     const contextOptions = {
-      viewport: this.options.viewport,
+      // Use null viewport for fullscreen to allow browser to use full screen size
+      viewport: this.options.startFullscreen ? null : this.options.viewport,
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       locale: 'en-US',
       timezoneId: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -454,6 +464,12 @@ export class YouTubeTVController implements IYouTubeTVController {
     if (!this.page) throw new Error('Controller not launched');
     await this.ensureVideoFocused();
     await this.page.keyboard.press('c');
+  }
+
+  async toggleFullscreen(): Promise<void> {
+    if (!this.page) throw new Error('Controller not launched');
+    await this.ensureVideoFocused();
+    await this.page.keyboard.press('f');
   }
 
   async pressButton(button: RemoteButton): Promise<void> {

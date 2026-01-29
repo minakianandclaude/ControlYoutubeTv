@@ -14,6 +14,8 @@ export interface YouTubeTVControllerOptions {
   chromeProfilePath?: string;
   /** Custom path to Chrome executable */
   executablePath?: string;
+  /** Start browser in fullscreen/kiosk mode */
+  startFullscreen?: boolean;
 }
 
 export interface PlaybackState {

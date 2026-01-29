@@ -16,6 +16,12 @@ Server runs on `http://localhost:3000` by default.
 curl -X POST http://localhost:3000/launch
 ```
 
+### Launch Browser in Fullscreen Mode
+No "controlled by automation" banner, starts fullscreen.
+```bash
+curl -X POST http://localhost:3000/launch -d '{"fullscreen": true}'
+```
+
 ### Close Browser
 ```bash
 curl -X POST http://localhost:3000/close
@@ -63,6 +69,11 @@ curl -X POST http://localhost:3000/unmute
 ### Toggle Captions
 ```bash
 curl -X POST http://localhost:3000/captions
+```
+
+### Toggle Fullscreen
+```bash
+curl -X POST http://localhost:3000/fullscreen
 ```
 
 ### Set Volume (0.0 - 1.0)
