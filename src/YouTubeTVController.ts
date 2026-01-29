@@ -164,9 +164,10 @@ export class YouTubeTVController implements IYouTubeTVController {
     ];
 
     // Add fullscreen flag if requested
-    // Use --kiosk for true fullscreen (bypasses fullscreen API restrictions)
     if (this.options.startFullscreen) {
-      args.push('--kiosk');
+      // Use app mode + fullscreen for borderless fullscreen experience
+      args.push('--app=https://tv.youtube.com');
+      args.push('--start-fullscreen');
     }
 
     const launchOptions: LaunchOptions = {
