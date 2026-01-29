@@ -144,9 +144,8 @@ export class YouTubeTVController implements IYouTubeTVController {
       console.log('Chrome not found, using Playwright channel: chrome');
     }
 
-    // Base launch arguments to reduce automation detection and enable codecs
+    // Base launch arguments for optimal playback
     const args = [
-      '--disable-blink-features=AutomationControlled',
       '--disable-features=IsolateOrigins,site-per-process',
       '--disable-infobars',
       '--no-first-run',
